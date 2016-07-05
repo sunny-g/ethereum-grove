@@ -163,7 +163,7 @@ library GroveLib {
                     parent = index.nodes[parent.parent];
                 }
 
-                // Now we need to trace all the way up checking to see if any parent is the 
+                // Now we need to trace all the way up checking to see if any parent is the
             }
 
             // This is the final node.
@@ -240,9 +240,8 @@ library GroveLib {
         /// @param index The index that should be removed
         /// @param id The unique identifier of the data element to remove.
         function remove(Index storage index, bytes32 id) public {
-            Node storage replacementNode;
-            Node storage parent;
-            Node storage child;
+            bytes32 childId;
+            bytes32 replacementNodeId;
             bytes32 rebalanceOrigin;
 
             Node storage nodeToDelete = index.nodes[id];
@@ -257,14 +256,17 @@ library GroveLib {
                 // it's tree by either the previous or next node.
                 if (nodeToDelete.left != 0x0) {
                     // This node is guaranteed to not have a right child.
-                    replacementNode = index.nodes[getPreviousNode(index, nodeToDelete.id)];
+                    replacementNodeId = getPreviousNode(index, nodeToDelete.id);
                 }
                 else {
                     // This node is guaranteed to not have a left child.
-                    replacementNode = index.nodes[getNextNode(index, nodeToDelete.id)];
+                    replacementNodeId = getNextNode(index, nodeToDelete.id);
                 }
+
+                Node storage replacementNode = index.nodes[replacementNodeId];
+
                 // The replacementNode is guaranteed to have a parent.
-                parent = index.nodes[replacementNode.parent];
+                Node storage parent = index.nodes[replacementNode.parent];
 
                 // Keep note of the location that our tree rebalancing should
                 // start at.
@@ -277,16 +279,20 @@ library GroveLib {
                 if (parent.left == replacementNode.id) {
                     parent.left = replacementNode.right;
                     if (replacementNode.right != 0x0) {
-                        child = index.nodes[replacementNode.right];
-                        child.parent = parent.id;
+                        childId = replacementNode.right;
                     }
                 }
                 if (parent.right == replacementNode.id) {
                     parent.right = replacementNode.left;
                     if (replacementNode.left != 0x0) {
-                        child = index.nodes[replacementNode.left];
-                        child.parent = parent.id;
+                        childId = replacementNode.left;
                     }
+                }
+
+                if (((parent.left == replacementNode.id) && (replacementNode.right != 0x0)) ||
+                    (parent.right == replacementNode.id) && (replacementNode.left != 0x0)) {
+                    Node storage child = index.nodes[childId];
+                    child.parent = parent.id;
                 }
 
                 // Now we replace the nodeToDelete with the replacementNode.
@@ -323,17 +329,17 @@ library GroveLib {
             else if (nodeToDelete.parent != 0x0) {
                 // The node being deleted is a leaf node so we only erase it's
                 // parent linkage.
-                parent = index.nodes[nodeToDelete.parent];
+                Node storage parentOfLeaf = index.nodes[nodeToDelete.parent];
 
-                if (parent.left == nodeToDelete.id) {
-                    parent.left = 0x0;
+                if (parentOfLeaf.left == nodeToDelete.id) {
+                    parentOfLeaf.left = 0x0;
                 }
-                if (parent.right == nodeToDelete.id) {
-                    parent.right = 0x0;
+                if (parentOfLeaf.right == nodeToDelete.id) {
+                    parentOfLeaf.right = 0x0;
                 }
 
                 // keep note of where the rebalancing should begin.
-                rebalanceOrigin = parent.id;
+                rebalanceOrigin = parentOfLeaf.id;
             }
             else {
                 // This is both a leaf node and the root node, so we need to
@@ -416,7 +422,7 @@ library GroveLib {
          */
         function query(Index storage index, bytes2 operator, int value) public returns (bytes32) {
                 bytes32 rootNodeId = index.root;
-                
+
                 if (rootNodeId == 0x0) {
                     // Empty tree.
                     return 0x0;
